@@ -1,5 +1,4 @@
 import pygame, os
-import time
 
 os.environ['SDL_VIDEO_CENTERED'] = '1'
 pygame.init()
@@ -37,6 +36,8 @@ class Subfield():
         self.cell_size = (win_size[0] - 40) // 3
         self.x0 = 20 + self.cell_size * n_col
         self.y0 = 20 + self.cell_size * n_row
+        self.isWon = False
+        self.isWonByCircle = False
         self.cells = []
 
         for i in range(3): # 3 x 3 matrics
@@ -44,6 +45,46 @@ class Subfield():
             for j in range(3):
                 row.append(Cell(self.cell_size, self.x0, self.y0, i, j))
             self.cells.append(row)
+
+
+    def isSubfieldWon(self):
+        for i in range(3):
+            col_drawn = False
+            is_thesame = False
+
+            col_drawn = self.cells[i][0].isDrawn and self.cells[i][1].isDrawn and self.cells[i][2].isDrawn
+            if col_drawn:
+                is_thesame = (self.cells[i][0].isCircle == self.cells[i][1].isCircle == self.cells[i][2].isCircle)
+                if is_thesame:
+                    self.isWon = True
+                    self.isWonByCircle = self.cells[i][0].isCircle
+                    return True
+
+            row_drawn = self.cells[0][i].isDrawn and self.cells[1][i].isDrawn and self.cells[2][i].isDrawn
+            if row_drawn:
+                is_thesame = (self.cells[0][i].isCircle == self.cells[1][i].isCircle == self.cells[2][i].isCircle)
+                if is_thesame:
+                    self.isWon = True
+                    self.isWonByCircle = self.cells[0][i].isCircle
+                    return True
+
+        diag_drawn = self.cells[0][0].isDrawn and self.cells[1][1].isDrawn and self.cells[2][2].isDrawn
+        if diag_drawn:
+            is_thesame = (self.cells[0][0].isCircle == self.cells[1][1].isCircle == self.cells[2][2].isCircle)
+            if is_thesame:
+                self.isWon = True
+                self.isWonByCircle = self.cells[0][0].isCircle
+        else:
+            diag_drawn = self.cells[0][2].isDrawn and self.cells[1][1].isDrawn and self.cells[2][0].isDrawn
+            if diag_drawn:
+                is_thesame = (self.cells[0][2].isCircle == self.cells[1][1].isCircle == self.cells[2][0].isCircle)
+                if is_thesame:
+                    self.isWon = True
+                    self.isWonByCircle = self.cells[0][2].isCircle   
+
+
+
+
 
 
 class Field():
@@ -60,14 +101,23 @@ class Field():
                 row.append(Subfield(win_size, i, j))
             self.main_cells.append(row)
 
+    def isGameOver(self):
+        gameOver = True
+        for i in range(3):
+            for j in range(3):
+                gameOver = gameOver and self.main_cells[i][j].isWon
+        if gameOver:
+            return True
+        return False
 
 
-isCircle = False
+
+isCircle = True
 clock = pygame.time.Clock()
 run = True
 pos = -1
 
-field = Field(win_size, 6)
+field = Field(win_size, 3)
 
 while run:
     clock.tick(25)
@@ -77,42 +127,58 @@ while run:
         if event.type == pygame.MOUSEBUTTONUP:
             pos = pygame.mouse.get_pos()
 
+    keys = pygame.key.get_pressed()
+
+    if keys[pygame.K_r]:
+        temp_color = field.clr
+        pos = -1
+        del field
+
+        if temp_color < 6:
+            temp_color +=1
+        else:
+            temp_color = 0
+        field = Field(win_size, temp_color)
+
     win.fill(COLORS['bg_color'][field.clr])
 
     cell_size = (win_size[0] - 40) // 9
 
     for i in range(3):
         for j in range(3):
-            for m in range(3):
-                for n in range(3):
-                    mini_x = field.main_cells[i][j].cells[m][n].x0
-                    mini_y = field.main_cells[i][j].cells[m][n].y0
-                    c_size = field.main_cells[i][j].cells[m][n].cell_size
-                    rect = (mini_x, mini_y, c_size)
-                    pygame.draw.rect(win, COLORS['cells_color'][field.clr], (mini_x, mini_y, c_size, c_size), 2)
+            if not field.main_cells[i][j].isWon:
+                for m in range(3):
+                    for n in range(3):
+                        mini_x = field.main_cells[i][j].cells[m][n].x0
+                        mini_y = field.main_cells[i][j].cells[m][n].y0
+                        c_size = field.main_cells[i][j].cells[m][n].cell_size
+                        rect = (mini_x, mini_y, c_size)
+                        pygame.draw.rect(win, COLORS['cells_color'][field.clr], (mini_x, mini_y, c_size, c_size), 2)
 
-                    if pos != -1 and isInRect(pos[0], pos[1], rect):
-                        if not field.main_cells[i][j].cells[m][n].isDrawn:
-                            field.main_cells[i][j].cells[m][n].isDrawn = True
-                            isCircle = not isCircle
-                            field.main_cells[i][j].cells[m][n].isCircle = isCircle
-                            '''
-                            if field.clr < 4:
-                                field.clr +=1
+                        if pos != -1 and isInRect(pos[0], pos[1], rect):
+                            if not field.main_cells[i][j].cells[m][n].isDrawn:
+                                field.main_cells[i][j].cells[m][n].isDrawn = True
+                                isCircle = not isCircle
+                                field.main_cells[i][j].cells[m][n].isCircle = isCircle
+                                field.main_cells[i][j].isSubfieldWon() # check if area is won
+
+
+                        if field.main_cells[i][j].cells[m][n].isDrawn:
+                            if field.main_cells[i][j].cells[m][n].isCircle:
+                                pygame.draw.circle(win, COLORS['sign_color'][field.clr], (mini_x + c_size//2, mini_y+c_size//2), c_size//2-5, 3)
                             else:
-                                field.clr = 0
-                            '''
+                                pygame.draw.line(win, COLORS['sign_color'][field.clr], (mini_x+10, mini_y+10), (mini_x+c_size-10, mini_y+c_size-10), 4)
+                                pygame.draw.line(win, COLORS['sign_color'][field.clr], (mini_x + c_size-10, mini_y+10), (mini_x+10, mini_y+c_size-10), 4)
 
-                    if field.main_cells[i][j].cells[m][n].isDrawn:
-                        if field.main_cells[i][j].cells[m][n].isCircle:
-                            pygame.draw.circle(win, COLORS['sign_color'][field.clr], (mini_x + c_size//2, mini_y+c_size//2), c_size//2-5, 3)
-                        else:
-                            pygame.draw.line(win, COLORS['sign_color'][field.clr], (mini_x+10, mini_y+10), (mini_x+c_size-10, mini_y+c_size-10), 4)
-                            pygame.draw.line(win, COLORS['sign_color'][field.clr], (mini_x + c_size-10, mini_y+10), (mini_x+10, mini_y+c_size-10), 4)
 
+            else:
+                if field.main_cells[i][j].isWonByCircle:
+                    pygame.draw.circle(win, COLORS['sign_color'][field.clr], (field.main_cells[i][j].x0 + field.main_cells[i][j].cell_size//2, field.main_cells[i][j].y0 + field.main_cells[i][j].cell_size//2), field.main_cells[i][j].cell_size//2-12, 3)
+                else:
+                    pygame.draw.line(win, COLORS['sign_color'][field.clr], (field.main_cells[i][j].x0+24, field.main_cells[i][j].y0+24), (field.main_cells[i][j].x0+field.main_cells[i][j].cell_size-24, field.main_cells[i][j].y0+field.main_cells[i][j].cell_size-24), 4)
+                    pygame.draw.line(win, COLORS['sign_color'][field.clr], (field.main_cells[i][j].x0 + field.main_cells[i][j].cell_size-24, field.main_cells[i][j].y0+24), (field.main_cells[i][j].x0+24, field.main_cells[i][j].y0+field.main_cells[i][j].cell_size-24), 4) 
 
     for i in range(3):
         for j in range(3):
             pygame.draw.rect(win, COLORS['outline_color'][field.clr], (20 + cell_size*j*3, 20 + cell_size*i*3, cell_size*3, cell_size*3), 3)
-
     pygame.display.update()
